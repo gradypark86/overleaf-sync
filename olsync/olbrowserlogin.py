@@ -31,6 +31,10 @@ except ImportError:
     import olbrowserlogin
 
 
+# JS snippet to extract the csrfToken
+JAVASCRIPT_CSRF_EXTRACTOR = "document.getElementsByName('ol-csrfToken')[0].content"
+
+
 @click.group(invoke_without_command=True)
 @click.option('-l', '--local-only', 'local', is_flag=True, help="Sync local project files to Overleaf only.")
 @click.option('-r', '--remote-only', 'remote', is_flag=True,
@@ -389,6 +393,8 @@ def olignore_keep_list(olignore_path):
     # get list of files recursively (ignore .* files)
     files = glob.glob('**', recursive=True)
 
+<<<<<<< HEAD
+<<<<<<< HEAD
     # click.echo("="*40)
     if not os.path.isfile(olignore_path):
         # click.echo("\nNotice: .olignore file does not exist, will sync all items.")
@@ -408,3 +414,86 @@ def olignore_keep_list(olignore_path):
 
 if __name__ == "__main__":
     main()
+=======
+=======
+>>>>>>> parent of e874d3d (fix csrfToken)
+    def __init__(self, ce_url=None, *args, **kwargs):
+        super(OlBrowserLoginWindow, self).__init__(*args, **kwargs)
+
+        if ce_url is not None:
+            self._BASE_URL = ce_url
+            self._cookies_names = ["sharelatex.sid"]
+        else:
+            self._BASE_URL = "https://www.overleaf.com"  # The Overleaf Base URL
+            self._cookies_names = ["overleaf_session2", "GCLB"]
+
+        self._LOGIN_URL = f"{self._BASE_URL}/login"
+        self._PROJECT_URL = f"{self._BASE_URL}/project"
+
+        self.webview = QWebEngineView()
+
+        self._cookies = {}
+        self._csrf = ""
+        self._login_success = False
+
+        self.profile = QWebEngineProfile(self.webview)
+        self.cookie_store = self.profile.cookieStore()
+        self.cookie_store.cookieAdded.connect(self.handle_cookie_added)
+        self.profile.setPersistentCookiesPolicy(
+            QWebEngineProfile.NoPersistentCookies)
+
+        self.profile.settings().setAttribute(QWebEngineSettings.JavascriptEnabled, True)
+
+        webpage = QWebEnginePage(self.profile, self)
+        self.webview.setPage(webpage)
+        self.webview.load(QUrl.fromUserInput(self._LOGIN_URL))
+        self.webview.loadFinished.connect(self.handle_load_finished)
+
+        self.setCentralWidget(self.webview)
+        self.resize(600, 700)
+
+    def handle_load_finished(self):
+        def callback(result):
+            self._csrf = result
+            self._login_success = True
+            QCoreApplication.quit()
+
+        if self.webview.url().toString() == self._PROJECT_URL:
+            self.webview.page().runJavaScript(
+                JAVASCRIPT_CSRF_EXTRACTOR, 0, callback
+            )
+
+    def handle_cookie_added(self, cookie):
+        cookie_name = cookie.name().data().decode('utf-8')
+        if cookie_name in self._cookies_names:
+            self._cookies[cookie_name] = cookie.value().data().decode('utf-8')
+
+    @property
+    def cookies(self):
+        return self._cookies
+
+    @property
+    def csrf(self):
+        return self._csrf
+
+    @property
+    def login_success(self):
+        return self._login_success
+
+
+def login(ce_url=None):
+    from PySide6.QtCore import QLoggingCategory
+    QLoggingCategory.setFilterRules('''\
+    qt.webenginecontext.info=false
+    ''')
+
+    app = QApplication([])
+    ol_browser_login_window = OlBrowserLoginWindow(ce_url)
+    ol_browser_login_window.show()
+    app.exec()
+
+    if not ol_browser_login_window.login_success:
+        return None
+
+    return {"cookie": ol_browser_login_window.cookies, "csrf": ol_browser_login_window.csrf}
+>>>>>>> 40bb87a3a0cca029c8f14f26e7ec466724cce4ec
