@@ -393,27 +393,14 @@ def olignore_keep_list(olignore_path):
     # get list of files recursively (ignore .* files)
     files = glob.glob('**', recursive=True)
 
-    click.echo("="*40)
-    if not os.path.isfile(olignore_path):
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
+    # click.echo("="*40)
+    # if not os.path.isfile(olignore_path):
         # click.echo("\nNotice: .olignore file does not exist, will sync all items.")
-=======
-        click.echo(
-            "\nNotice: .olignore file does not exist, will sync all items.")
->>>>>>> 40bb87a3a0cca029c8f14f26e7ec466724cce4ec
-=======
-        click.echo(
-            "\nNotice: .olignore file does not exist, will sync all items.")
->>>>>>> parent of e874d3d (fix csrfToken)
-=======
-        click.echo(
-            "\nNotice: .olignore file does not exist, will sync all items.")
->>>>>>> 40bb87a3a0cca029c8f14f26e7ec466724cce4ec
+        # click.echo(
+        #     "\nNotice: .olignore file does not exist, will sync all items.")
         keep_list = files
     else:
-        click.echo("\n.olignore: using %s to filter items" % olignore_path)
+        # click.echo("\n.olignore: using %s to filter items" % olignore_path)
         with open(olignore_path, 'r') as f:
             ignore_pattern = f.read().splitlines()
 
