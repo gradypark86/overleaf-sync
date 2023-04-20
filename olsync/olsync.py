@@ -44,10 +44,12 @@ except ImportError:
 @click.option('-i', '--olignore', 'olignore_path', default=".olignore", type=click.Path(exists=False),
               help="Path to the .olignore file relative to sync path (ignored if syncing from remote to local). See "
                    "fnmatch / unix filename pattern matching for information on how to use it.")
+@click.option('-u', '--ce-url', 'ce_url', default="",
+              help="Base url for Community Edition (CE) server. Uses this if .olce file is not present")
 @click.option('-v', '--verbose', 'verbose', is_flag=True, help="Enable extended error logging.")
 @click.version_option(package_name='overleaf-sync')
 @click.pass_context
-def main(ctx, local, remote, project_name, cookie_path, sync_path, olignore_path, verbose):
+def main(ctx, local, remote, project_name, cookie_path, sync_path, olignore_path, ce_url, verbose):
     if ctx.invoked_subcommand is None:
         if not os.path.isfile(cookie_path):
             raise click.ClickException(
@@ -56,7 +58,8 @@ def main(ctx, local, remote, project_name, cookie_path, sync_path, olignore_path
         with open(cookie_path, 'rb') as f:
             store = pickle.load(f)
 
-        overleaf_client = OverleafClient(store["cookie"], store["csrf"])
+        overleaf_client = OverleafClient(
+            store["cookie"], store["csrf"], ol_base_path(ce_url))
 
         # Change the current directory to the specified sync path
         os.chdir(sync_path)
@@ -89,28 +92,35 @@ def main(ctx, local, remote, project_name, cookie_path, sync_path, olignore_path
         if remote or sync:
             sync_func(
                 files_from=zip_file.namelist(),
-                deleted_files=[f for f in olignore_keep_list(olignore_path) if f not in zip_file.namelist() and not sync],
-                create_file_at_to=lambda name: write_file(name, zip_file.read(name)),
+                deleted_files=[f for f in olignore_keep_list(
+                    olignore_path) if f not in zip_file.namelist() and not sync],
+                create_file_at_to=lambda name: write_file(
+                    name, zip_file.read(name)),
                 delete_file_at_to=lambda name: delete_file(name),
                 create_file_at_from=lambda name: overleaf_client.upload_file(
                     project["id"], project_infos, name, os.path.getsize(name), open(name, 'rb')),
                 from_exists_in_to=lambda name: os.path.isfile(name),
-                from_equal_to_to=lambda name: open(name, 'rb').read() == zip_file.read(name),
+                from_equal_to_to=lambda name: open(
+                    name, 'rb').read() == zip_file.read(name),
                 from_newer_than_to=lambda name: dateutil.parser.isoparse(project["lastUpdated"]).timestamp() >
-                                                os.path.getmtime(name),
+                os.path.getmtime(name),
                 from_name="remote",
                 to_name="local",
                 verbose=verbose)
         if local or sync:
             sync_func(
                 files_from=olignore_keep_list(olignore_path),
-                deleted_files=[f for f in zip_file.namelist() if f not in olignore_keep_list(olignore_path) and not sync],
+                deleted_files=[f for f in zip_file.namelist(
+                ) if f not in olignore_keep_list(olignore_path) and not sync],
                 create_file_at_to=lambda name: overleaf_client.upload_file(
                     project["id"], project_infos, name, os.path.getsize(name), open(name, 'rb')),
-                delete_file_at_to=lambda name: overleaf_client.delete_file(project["id"], project_infos, name),
-                create_file_at_from=lambda name: write_file(name, zip_file.read(name)),
+                delete_file_at_to=lambda name: overleaf_client.delete_file(
+                    project["id"], project_infos, name),
+                create_file_at_from=lambda name: write_file(
+                    name, zip_file.read(name)),
                 from_exists_in_to=lambda name: name in zip_file.namelist(),
-                from_equal_to_to=lambda name: open(name, 'rb').read() == zip_file.read(name),
+                from_equal_to_to=lambda name: open(
+                    name, 'rb').read() == zip_file.read(name),
                 from_newer_than_to=lambda name: os.path.getmtime(name) > dateutil.parser.isoparse(
                     project["lastUpdated"]).timestamp(),
                 from_name="local",
@@ -121,13 +131,15 @@ def main(ctx, local, remote, project_name, cookie_path, sync_path, olignore_path
 @main.command()
 @click.option('--path', 'cookie_path', default=".olauth", type=click.Path(exists=False),
               help="Path to store the persisted Overleaf cookie.")
+@click.option('-u', '--ce-url', 'ce_url', default="",
+              help="Base url for Community Edition (CE) server. Uses this if .olce file is not present")
 @click.option('-v', '--verbose', 'verbose', is_flag=True, help="Enable extended error logging.")
-def login(cookie_path, verbose):
+def login(cookie_path, ce_url, verbose):
     if os.path.isfile(cookie_path) and not click.confirm(
             'Persisted Overleaf cookie already exist. Do you want to override it?'):
         return
     click.clear()
-    execute_action(lambda: login_handler(cookie_path), "Login",
+    execute_action(lambda: login_handler(cookie_path, ol_base_path(ce_url)), "Login",
                    "Login successful. Cookie persisted as `" + click.format_filename(
                        cookie_path) + "`. You may now sync your project.",
                    "Login failed. Please try again.", verbose)
@@ -136,13 +148,16 @@ def login(cookie_path, verbose):
 @main.command(name='list')
 @click.option('--store-path', 'cookie_path', default=".olauth", type=click.Path(exists=False),
               help="Relative path to load the persisted Overleaf cookie.")
+@click.option('-u', '--ce-url', 'ce_url', default="",
+              help="Base url for Community Edition (CE) server. Uses this if .olce file is not present")
 @click.option('-v', '--verbose', 'verbose', is_flag=True, help="Enable extended error logging.")
-def list_projects(cookie_path, verbose):
+def list_projects(cookie_path, ce_url, verbose):
     def query_projects():
         for index, p in enumerate(sorted(overleaf_client.all_projects(), key=lambda x: x['lastUpdated'], reverse=True)):
             if not index:
                 click.echo("\n")
-            click.echo(f"{dateutil.parser.isoparse(p['lastUpdated']).strftime('%m/%d/%Y, %H:%M:%S')} - {p['name']}")
+            click.echo(
+                f"{dateutil.parser.isoparse(p['lastUpdated']).strftime('%m/%d/%Y, %H:%M:%S')} - {p['name']}")
         return True
 
     if not os.path.isfile(cookie_path):
@@ -152,7 +167,8 @@ def list_projects(cookie_path, verbose):
     with open(cookie_path, 'rb') as f:
         store = pickle.load(f)
 
-    overleaf_client = OverleafClient(store["cookie"], store["csrf"])
+    overleaf_client = OverleafClient(
+        store["cookie"], store["csrf"], ol_base_path(ce_url))
 
     click.clear()
     execute_action(query_projects, "Querying all projects",
@@ -166,8 +182,10 @@ def list_projects(cookie_path, verbose):
 @click.option('--download-path', 'download_path', default=".", type=click.Path(exists=True))
 @click.option('--store-path', 'cookie_path', default=".olauth", type=click.Path(exists=False),
               help="Relative path to load the persisted Overleaf cookie.")
+@click.option('-u', '--ce-url', 'ce_url', default="",
+              help="Base url for Community Edition (CE) server. Uses this if .olce file is not present")
 @click.option('-v', '--verbose', 'verbose', is_flag=True, help="Enable extended error logging.")
-def download_pdf(project_name, download_path, cookie_path, verbose):
+def download_pdf(project_name, download_path, cookie_path, ce_url, verbose):
     def download_project_pdf():
         nonlocal project_name
         project_name = project_name or os.path.basename(os.getcwd())
@@ -194,7 +212,8 @@ def download_pdf(project_name, download_path, cookie_path, verbose):
     with open(cookie_path, 'rb') as f:
         store = pickle.load(f)
 
-    overleaf_client = OverleafClient(store["cookie"], store["csrf"])
+    overleaf_client = OverleafClient(
+        store["cookie"], store["csrf"], ol_base_path(ce_url))
 
     click.clear()
 
@@ -203,8 +222,8 @@ def download_pdf(project_name, download_path, cookie_path, verbose):
                    "Downloading project's PDF failed. Please try again.", verbose)
 
 
-def login_handler(path):
-    store = olbrowserlogin.login()
+def login_handler(path, ce_url=None):
+    store = olbrowserlogin.login(ce_url)
     if store is None:
         return False
     with open(path, 'wb+') as f:
@@ -268,7 +287,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
     for name in deleted_files:
         delete_choice = click.prompt(
             '\n-> Warning: file <%s> does not exist on [%s] anymore (but it still exists on [%s]).'
-            '\nShould the file be [d]eleted, [r]estored or [i]gnored?' % (name, from_name, to_name),
+            '\nShould the file be [d]eleted, [r]estored or [i]gnored?' % (
+                name, from_name, to_name),
             default="i",
             type=click.Choice(['d', 'r', 'i']))
         if delete_choice == "d":
@@ -287,7 +307,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
         except:
             if verbose:
                 print(traceback.format_exc())
-            raise click.ClickException("\n[ERROR] An error occurred while creating new file(s) on [%s]" % to_name)
+            raise click.ClickException(
+                "\n[ERROR] An error occurred while creating new file(s) on [%s]" % to_name)
 
     click.echo(
         "\n[NEW] Following new file(s) created on [%s]" % from_name)
@@ -298,7 +319,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
         except:
             if verbose:
                 print(traceback.format_exc())
-            raise click.ClickException("\n[ERROR] An error occurred while creating new file(s) on [%s]" % from_name)
+            raise click.ClickException(
+                "\n[ERROR] An error occurred while creating new file(s) on [%s]" % from_name)
 
     click.echo(
         "\n[UPDATE] Following file(s) updated on [%s]" % to_name)
@@ -309,7 +331,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
         except:
             if verbose:
                 print(traceback.format_exc())
-            raise click.ClickException("\n[ERROR] An error occurred while updating file(s) on [%s]" % to_name)
+            raise click.ClickException(
+                "\n[ERROR] An error occurred while updating file(s) on [%s]" % to_name)
 
     click.echo(
         "\n[DELETE] Following file(s) deleted on [%s]" % to_name)
@@ -320,7 +343,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
         except:
             if verbose:
                 print(traceback.format_exc())
-            raise click.ClickException("\n[ERROR] An error occurred while creating new file(s) on [%s]" % to_name)
+            raise click.ClickException(
+                "\n[ERROR] An error occurred while creating new file(s) on [%s]" % to_name)
 
     click.echo(
         "\n[SYNC] Following file(s) are up to date")
@@ -371,7 +395,8 @@ def olignore_keep_list(olignore_path):
 
     click.echo("="*40)
     if not os.path.isfile(olignore_path):
-        click.echo("\nNotice: .olignore file does not exist, will sync all items.")
+        click.echo(
+            "\nNotice: .olignore file does not exist, will sync all items.")
         keep_list = files
     else:
         click.echo("\n.olignore: using %s to filter items" % olignore_path)
@@ -381,8 +406,34 @@ def olignore_keep_list(olignore_path):
         keep_list = [f for f in files if not any(
             fnmatch.fnmatch(f, ignore) for ignore in ignore_pattern)]
 
-    keep_list = [Path(item).as_posix() for item in keep_list if not os.path.isdir(item)]
+    keep_list = [Path(item).as_posix()
+                 for item in keep_list if not os.path.isdir(item)]
     return keep_list
+
+
+def ol_base_path(ce_url):
+
+    # if ce_url: return ce_url # set from
+    # Read .olce file for URL to local installation of Overleaf/Sharelatex
+    olce_file = ".olce"
+
+    click.echo("=" * 40)
+
+    if not os.path.isfile(olce_file) and (ce_url in ["", "https://www.overleaf.com"]):
+        click.echo(
+            "\nNotice: .olce file does not exist nor --ce-url specified, will sync with overleaf.com.")
+        return None
+    else:
+        if not ce_url:
+            with open(olce_file, 'r') as f:
+                ce_url = f.readline().strip().strip("\n")
+                f.close()
+            source = ".olce"
+        else:
+            source = "--ce-url"
+        click.echo(f"\nusing {ce_url} as CE server (from {source})")
+
+    return ce_url
 
 
 if __name__ == "__main__":
