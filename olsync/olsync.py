@@ -397,6 +397,7 @@ def olignore_keep_list(olignore_path):
     if not os.path.isfile(olignore_path):
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         # click.echo("\nNotice: .olignore file does not exist, will sync all items.")
 =======
         click.echo(
@@ -406,6 +407,10 @@ def olignore_keep_list(olignore_path):
         click.echo(
             "\nNotice: .olignore file does not exist, will sync all items.")
 >>>>>>> parent of e874d3d (fix csrfToken)
+=======
+        click.echo(
+            "\nNotice: .olignore file does not exist, will sync all items.")
+>>>>>>> 40bb87a3a0cca029c8f14f26e7ec466724cce4ec
         keep_list = files
     else:
         click.echo("\n.olignore: using %s to filter items" % olignore_path)
