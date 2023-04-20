@@ -84,33 +84,46 @@ def main(ctx, local, remote, project_name, cookie_path, sync_path, olignore_path
             "Project could not be downloaded.",
             verbose)
 
+        if not os.path.isfile(olignore_path):
+            click.echo(
+                "\nNotice: .olignore file does not exist, will sync all items.")
+        else:
+            click.echo("\n.olignore: using %s to filter items" % olignore_path)
+
         sync = not (local or remote)
 
         if remote or sync:
             sync_func(
                 files_from=zip_file.namelist(),
-                deleted_files=[f for f in olignore_keep_list(olignore_path) if f not in zip_file.namelist() and not sync],
-                create_file_at_to=lambda name: write_file(name, zip_file.read(name)),
+                deleted_files=[f for f in olignore_keep_list(
+                    olignore_path) if f not in zip_file.namelist() and not sync],
+                create_file_at_to=lambda name: write_file(
+                    name, zip_file.read(name)),
                 delete_file_at_to=lambda name: delete_file(name),
                 create_file_at_from=lambda name: overleaf_client.upload_file(
                     project["id"], project_infos, name, os.path.getsize(name), open(name, 'rb')),
                 from_exists_in_to=lambda name: os.path.isfile(name),
-                from_equal_to_to=lambda name: open(name, 'rb').read() == zip_file.read(name),
+                from_equal_to_to=lambda name: open(
+                    name, 'rb').read() == zip_file.read(name),
                 from_newer_than_to=lambda name: dateutil.parser.isoparse(project["lastUpdated"]).timestamp() >
-                                                os.path.getmtime(name),
+                os.path.getmtime(name),
                 from_name="remote",
                 to_name="local",
                 verbose=verbose)
         if local or sync:
             sync_func(
                 files_from=olignore_keep_list(olignore_path),
-                deleted_files=[f for f in zip_file.namelist() if f not in olignore_keep_list(olignore_path) and not sync],
+                deleted_files=[f for f in zip_file.namelist(
+                ) if f not in olignore_keep_list(olignore_path) and not sync],
                 create_file_at_to=lambda name: overleaf_client.upload_file(
                     project["id"], project_infos, name, os.path.getsize(name), open(name, 'rb')),
-                delete_file_at_to=lambda name: overleaf_client.delete_file(project["id"], project_infos, name),
-                create_file_at_from=lambda name: write_file(name, zip_file.read(name)),
+                delete_file_at_to=lambda name: overleaf_client.delete_file(
+                    project["id"], project_infos, name),
+                create_file_at_from=lambda name: write_file(
+                    name, zip_file.read(name)),
                 from_exists_in_to=lambda name: name in zip_file.namelist(),
-                from_equal_to_to=lambda name: open(name, 'rb').read() == zip_file.read(name),
+                from_equal_to_to=lambda name: open(
+                    name, 'rb').read() == zip_file.read(name),
                 from_newer_than_to=lambda name: os.path.getmtime(name) > dateutil.parser.isoparse(
                     project["lastUpdated"]).timestamp(),
                 from_name="local",
@@ -142,7 +155,8 @@ def list_projects(cookie_path, verbose):
         for index, p in enumerate(sorted(overleaf_client.all_projects(), key=lambda x: x['lastUpdated'], reverse=True)):
             if not index:
                 click.echo("\n")
-            click.echo(f"{dateutil.parser.isoparse(p['lastUpdated']).strftime('%m/%d/%Y, %H:%M:%S')} - {p['name']}")
+            click.echo(
+                f"{dateutil.parser.isoparse(p['lastUpdated']).strftime('%m/%d/%Y, %H:%M:%S')} - {p['name']}")
         return True
 
     if not os.path.isfile(cookie_path):
@@ -187,6 +201,7 @@ def download_pdf(project_name, download_path, cookie_path, verbose):
 
         return True
 
+    click.echo("="*40)
     if not os.path.isfile(cookie_path):
         raise click.ClickException(
             "Persisted Overleaf cookie not found. Please login or check store path.")
@@ -268,7 +283,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
     for name in deleted_files:
         delete_choice = click.prompt(
             '\n-> Warning: file <%s> does not exist on [%s] anymore (but it still exists on [%s]).'
-            '\nShould the file be [d]eleted, [r]estored or [i]gnored?' % (name, from_name, to_name),
+            '\nShould the file be [d]eleted, [r]estored or [i]gnored?' % (
+                name, from_name, to_name),
             default="i",
             type=click.Choice(['d', 'r', 'i']))
         if delete_choice == "d":
@@ -287,7 +303,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
         except:
             if verbose:
                 print(traceback.format_exc())
-            raise click.ClickException("\n[ERROR] An error occurred while creating new file(s) on [%s]" % to_name)
+            raise click.ClickException(
+                "\n[ERROR] An error occurred while creating new file(s) on [%s]" % to_name)
 
     click.echo(
         "\n[NEW] Following new file(s) created on [%s]" % from_name)
@@ -298,7 +315,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
         except:
             if verbose:
                 print(traceback.format_exc())
-            raise click.ClickException("\n[ERROR] An error occurred while creating new file(s) on [%s]" % from_name)
+            raise click.ClickException(
+                "\n[ERROR] An error occurred while creating new file(s) on [%s]" % from_name)
 
     click.echo(
         "\n[UPDATE] Following file(s) updated on [%s]" % to_name)
@@ -309,7 +327,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
         except:
             if verbose:
                 print(traceback.format_exc())
-            raise click.ClickException("\n[ERROR] An error occurred while updating file(s) on [%s]" % to_name)
+            raise click.ClickException(
+                "\n[ERROR] An error occurred while updating file(s) on [%s]" % to_name)
 
     click.echo(
         "\n[DELETE] Following file(s) deleted on [%s]" % to_name)
@@ -320,7 +339,8 @@ def sync_func(files_from, deleted_files, create_file_at_to, delete_file_at_to, c
         except:
             if verbose:
                 print(traceback.format_exc())
-            raise click.ClickException("\n[ERROR] An error occurred while creating new file(s) on [%s]" % to_name)
+            raise click.ClickException(
+                "\n[ERROR] An error occurred while creating new file(s) on [%s]" % to_name)
 
     click.echo(
         "\n[SYNC] Following file(s) are up to date")
@@ -369,19 +389,20 @@ def olignore_keep_list(olignore_path):
     # get list of files recursively (ignore .* files)
     files = glob.glob('**', recursive=True)
 
-    click.echo("="*40)
+    # click.echo("="*40)
     if not os.path.isfile(olignore_path):
-        click.echo("\nNotice: .olignore file does not exist, will sync all items.")
+        # click.echo("\nNotice: .olignore file does not exist, will sync all items.")
         keep_list = files
     else:
-        click.echo("\n.olignore: using %s to filter items" % olignore_path)
+        # click.echo("\n.olignore: using %s to filter items" % olignore_path)
         with open(olignore_path, 'r') as f:
             ignore_pattern = f.read().splitlines()
 
         keep_list = [f for f in files if not any(
             fnmatch.fnmatch(f, ignore) for ignore in ignore_pattern)]
 
-    keep_list = [Path(item).as_posix() for item in keep_list if not os.path.isdir(item)]
+    keep_list = [Path(item).as_posix()
+                 for item in keep_list if not os.path.isdir(item)]
     return keep_list
 
 
